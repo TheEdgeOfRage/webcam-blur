@@ -1,4 +1,25 @@
-bodypix/node_modules/
-bodypix/package-lock.json
-docker-compose*.yml
-venv/*
+# pycache
+*.pyc
+__pycache__/
+
+# Tools
+.mypy_cache
+.coverage
+
+# Distribution / packaging
+.Python
+env/
+.*venv/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg

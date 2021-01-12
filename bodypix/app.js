@@ -1,11 +1,11 @@
-const tf = require('@tensorflow/tfjs-node');
+const tf = require('@tensorflow/tfjs-node-gpu');
 const bodyPix = require('@tensorflow-models/body-pix');
 const http = require('http');
+
 (async () => {
     const net = await bodyPix.load({
-        architecture: 'MobileNetV1',
+        architecture: 'ResNet50',
         outputStride: 16,
-        multiplier: 0.75,
         quantBytes: 2,
     });
     const server = http.createServer();
@@ -20,6 +20,7 @@ const http = require('http');
                 flipHorizontal: false,
                 internalResolution: 'medium',
                 segmentationThreshold: 0.7,
+                maxDetections: 1,
             });
             res.writeHead(200, { 'Content-Type': 'application/octet-stream' });
             res.write(Buffer.from(segmentation.data));

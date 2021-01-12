@@ -1,100 +1,74 @@
 import os
-import cv2
-import numpy as np
+
+import cv2  # type: ignore
+import numpy as np  # type: ignore
+import pyfakewebcam  # type: ignore
 import requests
-import pyfakewebcam
-import getopt
-from signal import signal, SIGINT
-from sys import argv, exit
+
 
 height, width = 720, 1280
 rem_mask = None
 rem = 0
-maskFrames = 1
-
-def load_background_image(width,height):
-    # load the virtual background
-    background = cv2.imread("background.jpg")
-    background = cv2.resize(background, (width, height))
-    return background
+SCALE_FACTOR = 0.5
+mask_persist_frame_count = int(os.getenv('MASK_PERSIST_FRAME_COUNT', 1))
 
 
-def handler(signal_received):
-    global width,height 
-    load_background_image( width,height)
-    print('Reloaded the background image')
-
-def get_mask(frame, sf, bodypix_url='http://127.0.0.1:9000'):
-    # cv2.imshow('FrameinMask',frame)
-    # cv2.waitKey(10)
-    frame = cv2.resize(frame, (0, 0), fx=sf, fy=sf)
-    _, data = cv2.imencode(".png", frame)
+def get_mask(frame, bodypix_url='http://bodypix:9000'):
+    frame = cv2.resize(frame, (0, 0), fx=SCALE_FACTOR, fy=SCALE_FACTOR)
+    _, data = cv2.imencode('.png', frame)
     r = requests.post(
         url=bodypix_url,
         data=data.tobytes(),
-        headers={'Content-Type': 'application/octet-stream'})
+        headers={'Content-Type': 'application/octet-stream'}
+    )
+
     mask = np.frombuffer(r.content, dtype=np.uint8)
     mask = mask.reshape((frame.shape[0], frame.shape[1]))
-    mask = cv2.resize(mask, (0, 0), fx=1/sf, fy=1/sf,
+    mask = cv2.resize(mask, (0, 0), fx=1 / SCALE_FACTOR, fy=1 / SCALE_FACTOR,
                       interpolation=cv2.INTER_NEAREST)
-    mask = cv2.dilate(mask, np.ones((15,15), np.uint8) , iterations=1)
-    mask = cv2.blur(mask.astype(float), (50,50))
-    #cv2.imshow("MASK", mask)
-    #cv2.waitKey(10)
+    mask = cv2.dilate(mask, np.ones((10, 10), np.uint8), iterations=1)
+    mask = cv2.blur(mask.astype(float), (30, 30))
+
     return mask
 
-def get_frame(cap, background, sf):
+
+def get_frame(cap):
     global rem_mask
     global rem
-    global maskFrames
     _, frame = cap.read()
-    print ('Mask Frames' + str(maskFrames))
-    # fetch the mask with retries (the app needs to warmup and we're lazy)
-    # e v e n t u a l l y c o n s i s t e n t
     mask = None
-    if(rem_mask is None):
+    if rem_mask is None:
         rem = 0
         while mask is None:
             try:
-                mask = get_mask(frame,sf)
+                mask = get_mask(frame)
                 rem_mask = mask
             except:
-                 print("mask request failed, retrying")
+                print('mask request failed, retrying')
     else:
         mask = rem_mask
-        rem+=1
-        if(rem>maskFrames):
+        rem += 1
+        if rem > mask_persist_frame_count:
             rem_mask = None
-        # print(rem)
+
+    #  background = cv2.imread('background.jpg')
+    #  background = cv2.resize(background, (width, height))
+    background = cv2.blur(frame.astype(float), (30, 30))
+
     # composite the background
     for c in range(frame.shape[2]):
-        frame[:,:,c] = frame[:,:,c] * mask + background[:,:,c] * (1 - mask)
+        frame[:, :, c] = (
+            frame[:, :, c] * mask
+            + background[:, :, c] * (1 - mask)
+        )
 
     return frame
 
 
 def main():
-    global width, height, maskFrames
-    backgroundType = 'image'
-    try:
-        opts, args = getopt.getopt(argv[1:],"htm:v",["type","maskFrames"])
-    except getopt.GetoptError:
-        print('python fake.py [-t <image|video>]')
-        exit(2)
-    for opt, arg in opts:
-        if opt == '-h':
-            print('python fake.py [-t <image|video>] [-m <numberFramesBeforeUpdateMask>]')
-            exit()
-        elif opt in ("-t", "--type"):
-            backgroundType = arg
-        elif opt in ("-m", "--maskFrames"):
-            maskFrames = int(arg)
- 
-    print(backgroundType)
-    # setup access to the *real* webcam
+    global height
+    global width
     cap = cv2.VideoCapture('/dev/video0')
-    capvideo = cv2.VideoCapture('video.mp4')
-
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
     cap.set(cv2.CAP_PROP_FPS, 30)
@@ -104,45 +78,16 @@ def main():
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 
     # The scale factor for image sent to bodypix
-    sf = 0.5
 
     # setup the fake camera
-    fake = pyfakewebcam.FakeWebcam('/dev/video2', width, height)
+    output_cam = pyfakewebcam.FakeWebcam('/dev/video10', width, height)
 
-    # declare global variables
-    background = None
-
-    # if backgroudType
-    background = load_background_image(width, height)
-    signal(SIGINT, handler)
     print('Running...')
-    print('Please press CTRL-\ to exit.')
-    print('Please CTRL-C to reload the background image')
-    # frames forever
     while True:
-        if backgroundType == 'video':
-            ret, background2 = capvideo.read() 
-
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-            if ret:
-                background2 = cv2.resize(background2, (width, height))
-                # cv2.imshow("Image", background2)
-                background2Prev = background2
-            else:
-                capvideo.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                background2 = background2Prev
-            background = background2
-
-        # cv2.imshow("BackgroundImage", background)
-        # cv2.waitKey(100)
-        frame = get_frame(cap, background, sf)
-        # fake webcam expects RGB
+        frame = get_frame(cap)
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        # cv2.imshow("Post", frame)
+        output_cam.schedule_frame(frame)
 
-        fake.schedule_frame(frame)
 
 if __name__ == '__main__':
     main()
-   
