@@ -1,4 +1,5 @@
+loguru==0.5.*
 numpy==1.19.*
 opencv-python-headless==4.4.*
-requests==2.25.*
 pyfakewebcam==0.1.0
+requests==2.25.*

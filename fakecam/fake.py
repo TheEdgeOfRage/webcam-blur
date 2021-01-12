@@ -4,6 +4,8 @@ import cv2  # type: ignore
 import numpy as np  # type: ignore
 import pyfakewebcam  # type: ignore
 import requests
+from loguru import logger
+from requests.exceptions import ConnectionError
 
 
 height, width = 720, 1280
@@ -40,11 +42,13 @@ def get_frame(cap):
     if rem_mask is None:
         rem = 0
         while mask is None:
+            #  mask = get_mask(frame)
+            #  rem_mask = mask
             try:
                 mask = get_mask(frame)
                 rem_mask = mask
-            except:
-                print('mask request failed, retrying')
+            except ConnectionError:
+                continue
     else:
         mask = rem_mask
         rem += 1
@@ -82,7 +86,7 @@ def main():
     # setup the fake camera
     output_cam = pyfakewebcam.FakeWebcam('/dev/video10', width, height)
 
-    print('Running...')
+    logger.info('Starting fakecam service')
     while True:
         frame = get_frame(cap)
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)

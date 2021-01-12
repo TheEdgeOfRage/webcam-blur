@@ -1,0 +1,23 @@
+version: '3'
+services:
+  bodypix:
+    build: bodypix
+    image: bodypix
+    container_name: bodypix
+    restart: unless-stopped
+    init: true
+    runtime: nvidia
+
+  fakecam:
+    build: fakecam
+    image: fakecam
+    container_name: fakecam
+    restart: unless-stopped
+    init: true
+    user: '1000:986'
+    environment:
+      MASK_PERSIST_FRAME_COUNT: '4'
+    devices:
+      - '/dev/video0:/dev/video0'
+      - '/dev/video9:/dev/video9'
+      - '/dev/video10:/dev/video10'
