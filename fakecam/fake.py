@@ -55,11 +55,10 @@ def get_frame(cap):
         if rem > mask_persist_frame_count:
             rem_mask = None
 
-    #  background = cv2.imread('background.jpg')
-    #  background = cv2.resize(background, (width, height))
-    background = cv2.blur(frame.astype(float), (30, 30))
+    background = cv2.imread('background.png')
+    background = cv2.resize(background, (width, height))
+    #  background = cv2.blur(frame.astype(float), (30, 30))
 
-    # composite the background
     for c in range(frame.shape[2]):
         frame[:, :, c] = (
             frame[:, :, c] * mask

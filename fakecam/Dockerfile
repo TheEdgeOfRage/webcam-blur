@@ -5,6 +5,6 @@ WORKDIR /src
 COPY requirements.txt ./
 RUN pip3 install --no-cache-dir -r requirements.txt
 
-COPY background.jpg fake.py ./
+COPY background.png fake.py ./
 
 ENTRYPOINT python3 -u fake.py
